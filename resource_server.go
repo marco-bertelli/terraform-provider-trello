@@ -6,6 +6,7 @@ import (
         "log"
         "net/http"
         "encoding/json"
+        "strconv"
 )
 
 func resourceServer() *schema.Resource {
@@ -34,14 +35,14 @@ func resourceServer() *schema.Resource {
                         },
                         "board_id": &schema.Schema{
                                 Type:     schema.TypeString,
-                                Required: false,
+                                Computed: true,
                         },
                 },
         }
 }
 
 type Body struct {
-        id string
+        Id string `json:"id"`
     }
 
 func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
@@ -57,22 +58,30 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
                 log.Fatalln(err)
         }
 
-        defer resp.Body.Close()
-
         //lettura body.
         body := new(Body)
+        
         json.NewDecoder(resp.Body).Decode(body)
 
-        resp1, err1 := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.id+"&=&name="+board_name,"application/json",nil)
+
+        resp1, err1 := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.Id+"&=&name="+board_name,"application/json",nil)
+        
+        //lettura body.
+        body1 := new(Body)
+        
+        json.NewDecoder(resp1.Body).Decode(body1)
+
+        d.Set("board_id",body1.Id)
 
         if err1 != nil {
                 log.Fatalln(resp1)
         }
 
         defer resp1.Body.Close()
+        defer resp.Body.Close()
         
         d.SetId(board_name)
-        d.Set("board_id",body.id)
+        
 
 
         return resourceServerRead(d, m)
@@ -91,11 +100,17 @@ func resourceServerUpdate(d *schema.ResourceData, m interface{}) error {
         board_name := d.Get("board_name").(string)
         board_id := d.Get("board_id").(string)
 
-        client := &http.Client{}
-	request, err := http.NewRequest("PUT", "https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+board_id+"&=&name="+board_name, nil)
-	request.SetBasicAuth("admin", "admin")
-	request.ContentLength = 23
-	response, err := client.Do(request)
+        log.Println("[ERROR] "+board_id)
+
+	request, err := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+board_id+"?key="+key+"&token="+token+"&name="+board_name, nil)
+
+        
+
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	response, err := http.DefaultClient.Do(request)
+
+        log.Println("[ERROR] "+strconv.Itoa(response.StatusCode))
 	if err != nil {
 		log.Fatal(err)
 	} else {
