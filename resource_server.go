@@ -32,6 +32,10 @@ func resourceServer() *schema.Resource {
                                 Type:     schema.TypeString,
                                 Required: true,
                         },
+                        "board_id": &schema.Schema{
+                                Type:     schema.TypeString,
+                                Required: false,
+                        },
                 },
         }
 }
@@ -61,26 +65,45 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
 
         resp1, err1 := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.id+"&=&name="+board_name,"application/json",nil)
 
-        defer resp1.Body.Close()
-        
         if err1 != nil {
                 log.Fatalln(resp1)
         }
+
+        defer resp1.Body.Close()
         
         d.SetId(board_name)
+        d.Set("board_id",body.id)
 
-/*
-        // In case of developing provider for on-prem cloud or public cloud
-        // Not supported by terraform, add the API call to corresponding Resource creation API 
-*/
+
         return resourceServerRead(d, m)
 }
 
 func resourceServerRead(d *schema.ResourceData, m interface{}) error {
+
         return nil
 }
 
 func resourceServerUpdate(d *schema.ResourceData, m interface{}) error {
+
+        key := d.Get("key").(string)
+        token := d.Get("token").(string)
+       
+        board_name := d.Get("board_name").(string)
+        board_id := d.Get("board_id").(string)
+
+        client := &http.Client{}
+	request, err := http.NewRequest("PUT", "https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+board_id+"&=&name="+board_name, nil)
+	request.SetBasicAuth("admin", "admin")
+	request.ContentLength = 23
+	response, err := client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		defer response.Body.Close()
+		
+	}
+
+
         return resourceServerRead(d, m)
 }
 
