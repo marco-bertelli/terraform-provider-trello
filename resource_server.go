@@ -37,6 +37,13 @@ func resourceServer() *schema.Resource {
                                 Type:     schema.TypeString,
                                 Computed: true,
                         },
+                        "cards": {
+                                Type:     schema.TypeList,
+                                Required: true,
+                                Elem: &schema.Schema{
+                                  Type: schema.TypeString,
+                                },
+                        },
                 },
         }
 }
@@ -77,13 +84,20 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
                 log.Fatalln(resp1)
         }
 
+        // cards for the current board read and create
+        itemsRaw := d.Get("cards").([]interface{})
+        items := make([]string, len(itemsRaw))
+        
+        for i, raw := range itemsRaw {
+        items[i] = raw.(string)
+        log.Println("[ERROR] "+ items[i])
+        }
+
         defer resp1.Body.Close()
         defer resp.Body.Close()
         
         d.SetId(board_name)
         
-
-
         return resourceServerRead(d, m)
 }
 
@@ -103,8 +117,6 @@ func resourceServerUpdate(d *schema.ResourceData, m interface{}) error {
         log.Println("[ERROR] "+board_id)
 
 	request, err := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+board_id+"?key="+key+"&token="+token+"&name="+board_name, nil)
-
-        
 
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 
