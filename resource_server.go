@@ -71,7 +71,7 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         json.NewDecoder(resp.Body).Decode(body)
 
 
-        resp1, err1 := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.Id+"&=&name="+board_name,"application/json",nil)
+        resp1, err1 := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.Id+"&=&name="+board_name+"&defaultLists=false","application/json",nil)
         
         //lettura body.
         body1 := new(Body)
@@ -91,6 +91,10 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         for i, raw := range itemsRaw {
         items[i] = raw.(string)
         log.Println("[ERROR] "+ items[i])
+        resp2, err2 := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+items[i]+"&idBoard="+body1.Id,"application/json",nil)
+        if err2 != nil {
+                log.Fatalln(resp2)
+        }
         }
 
         defer resp1.Body.Close()
