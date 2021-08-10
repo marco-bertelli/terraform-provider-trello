@@ -59,7 +59,7 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         board_name := d.Get("board_name").(string)
 
 
-        resp, err := http.Post("https://api.trello.com/1/organizations?key="+key+"&token="+token+"&displayName="+workspace_name,"application/json",nil)
+        workspace, err := http.Post("https://api.trello.com/1/organizations?key="+key+"&token="+token+"&displayName="+workspace_name,"application/json",nil)
 
         if err != nil {
                 log.Fatalln(err)
@@ -68,20 +68,20 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         //lettura body.
         body := new(Body)
         
-        json.NewDecoder(resp.Body).Decode(body)
+        json.NewDecoder(workspace.Body).Decode(body)
 
 
-        resp1, err1 := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.Id+"&=&name="+board_name+"&defaultLists=false","application/json",nil)
+        board, boardError := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.Id+"&=&name="+board_name+"&defaultLists=false","application/json",nil)
         
         //lettura body.
         body1 := new(Body)
         
-        json.NewDecoder(resp1.Body).Decode(body1)
+        json.NewDecoder(board.Body).Decode(body1)
 
         d.Set("board_id",body1.Id)
 
-        if err1 != nil {
-                log.Fatalln(resp1)
+        if boardError != nil {
+                log.Fatalln(board)
         }
 
         // cards for the current board read and create
@@ -91,14 +91,16 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         for i, raw := range itemsRaw {
         items[i] = raw.(string)
         log.Println("[ERROR] "+ items[i])
-        resp2, err2 := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+items[i]+"&idBoard="+body1.Id,"application/json",nil)
-        if err2 != nil {
-                log.Fatalln(resp2)
-        }
+
+        lists, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+items[i]+"&idBoard="+body1.Id,"application/json",nil)
+        if listsError != nil {
+                log.Fatalln(lists)
         }
 
-        defer resp1.Body.Close()
-        defer resp.Body.Close()
+        }
+        //final close of main req
+        defer board.Body.Close()
+        defer workspace.Body.Close()
         
         d.SetId(board_name)
         
@@ -124,13 +126,13 @@ func resourceServerUpdate(d *schema.ResourceData, m interface{}) error {
 
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	response, err := http.DefaultClient.Do(request)
+	workspaceonse, err := http.DefaultClient.Do(request)
 
-        log.Println("[ERROR] "+strconv.Itoa(response.StatusCode))
+        log.Println("[ERROR] "+strconv.Itoa(workspaceonse.StatusCode))
 	if err != nil {
 		log.Fatal(err)
 	} else {
-		defer response.Body.Close()
+		defer workspaceonse.Body.Close()
 		
 	}
 
