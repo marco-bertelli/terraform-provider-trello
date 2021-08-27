@@ -37,6 +37,10 @@ func resourceServer() *schema.Resource {
                                 Type:     schema.TypeString,
                                 Computed: true,
                         },
+                        "workspace_id": &schema.Schema{
+                                Type:     schema.TypeString,
+                                Computed: true,
+                        },
                         "cards": {
                                 Type:     schema.TypeList,
                                 Required: true,
@@ -70,6 +74,7 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         
         json.NewDecoder(workspace.Body).Decode(body)
 
+        d.Set("workspace_id",body.Id)
 
         board, boardError := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+body.Id+"&=&name="+board_name+"&defaultLists=false","application/json",nil)
         
@@ -141,5 +146,40 @@ func resourceServerUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceServerDelete(d *schema.ResourceData, m interface{}) error {
-        return nil
+        board_id := d.Get("board_id").(string)
+        workspace_id := d.Get("workspace_id").(string)
+
+        key := d.Get("key").(string)
+        token := d.Get("token").(string)
+
+        // chiamata delete della board
+        board, boardErr := http.NewRequest("DELETE", "https://api.trello.com/1/organizations/"+workspace_id+"?key="+key+"&token="+token, nil)
+
+        board.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	boardCall, err := http.DefaultClient.Do(board)
+
+        if boardErr != nil {
+		log.Fatal(boardErr)
+	} else {
+		defer boardCall.Body.Close()
+		
+	}
+
+        // chiamata delete del workspace
+
+	request, err := http.NewRequest("DELETE", "https://api.trello.com/1/boards/"+board_id+"?key="+key+"&token="+token, nil)
+
+        request.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	workspaceonse, err := http.DefaultClient.Do(request)
+
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		defer workspaceonse.Body.Close()
+		
+	}
+
+        return resourceServerRead(d, m)
 }
