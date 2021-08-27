@@ -2,7 +2,7 @@ terraform {
   required_providers {
     trello = {
       source = "marco-bertelli/trello"
-      version = "0.2.2"
+      version = "1.0.0"
     }
   }
 }
