@@ -7,6 +7,7 @@ import (
         "net/http"
         "encoding/json"
         "strconv"
+        "io/ioutil"
 )
 
 func resourceServer() *schema.Resource {
@@ -48,6 +49,13 @@ func resourceServer() *schema.Resource {
                                   Type: schema.TypeString,
                                 },
                         },
+                        "member_emails": {
+                                Type:     schema.TypeList,
+                                Required: true,
+                                Elem: &schema.Schema{
+                                  Type: schema.TypeString,
+                                },
+                        },
                 },
         }
 }
@@ -83,6 +91,8 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         
         json.NewDecoder(board.Body).Decode(body1)
 
+        board_id := body1.Id
+
         d.Set("board_id",body1.Id)
 
         if boardError != nil {
@@ -97,10 +107,44 @@ func resourceServerCreate(d *schema.ResourceData, m interface{}) error {
         items[i] = raw.(string)
         log.Println("[ERROR] "+ items[i])
 
-        lists, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+items[i]+"&idBoard="+body1.Id,"application/json",nil)
+        lists, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+items[i]+"&idBoard="+board_id,"application/json",nil)
         if listsError != nil {
                 log.Fatalln(lists)
         }
+
+        }
+
+
+        //emails for the current board read and create
+        emailsRaw := d.Get("member_emails").([]interface{})
+        emails := make([]string, len(emailsRaw))
+        
+        for i, raw := range emailsRaw {
+
+        emails[i] = raw.(string)
+        log.Println("[ERROR] "+ emails[i])
+        log.Println("[ERROR] "+ "https://api.trello.com/1/boards/"+board_id+"/members?email="+emails[i])
+
+        emailReq, emailErr := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+board_id+"/members?key="+key+"&token="+token+"&email="+emails[i], nil)
+
+        emailReq.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+        emailresponse, emailerr := http.DefaultClient.Do(emailReq)
+
+        
+
+        
+        bodyBytes, err := ioutil.ReadAll(emailresponse.Body)
+        if err != nil {
+                log.Fatal(err)
+        }
+        bodyString := string(bodyBytes)
+        log.Println("[ERROR] "+ bodyString)
+                   
+
+               if emailerr != nil {
+                       log.Fatalln(board)
+               }
 
         }
         //final close of main req
