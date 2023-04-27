@@ -23,7 +23,7 @@ Do not keep your authentication key and token in HCL for production environments
   required_providers {
     trello = {
       source = "marco-bertelli/trello"
-      version = "1.2.0"
+      version = "3.0.0"
     }
   }
 }
