@@ -38,3 +38,7 @@ resource "trello_board" "my-board-name" {
   member_emails = ["marco.bertelli@testcollaborator.com"]
 }
 ```
+
+## Schema
+
+### Optional

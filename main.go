@@ -1,4 +1,3 @@
-// main.go la base del provider di terraform
 package main
 
 import (
@@ -11,18 +10,26 @@ import (
 )
 
 var (
-	// these will be set by the goreleaser configuration
-	// to appropriate values for the compiled binary
 	version string = "dev"
 
-	// goreleaser can also pass the specific commit if you want
-	// commit  string = ""
+	// goreleaser can pass other information to the main package, such as the specific commit
+	// https://goreleaser.com/cookbooks/using-main.version/
 )
 
 func main() {
-        plugin.Serve(&plugin.ServeOpts{
-                ProviderFunc: func() terraform.ResourceProvider {
-                        return Provider()
-                },
-        })
+	var debug bool
+
+	flag.BoolVar(&debug, "debug", false, "set to true to run the provider with support for debuggers like delve")
+	flag.Parse()
+
+	opts := providerserver.ServeOpts{
+		Address: "registry.terraform.io/marco-bertelli/trello",
+		Debug:   debug,
+	}
+
+	err := providerserver.Serve(context.Background(), provider.New(version), opts)
+
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
