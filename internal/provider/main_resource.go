@@ -2,15 +2,15 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"encoding/json"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // ! Ensure provider defined types fully satisfy framework interfaces.
@@ -25,14 +25,14 @@ type TerraformResource struct {
 }
 
 type TerraformResourceModel struct {
-	Key                   types.String `tfsdk:"key"`
-	Token                 types.String `tfsdk:"token"`
-	Workspace_name        types.String `tfsdk:"workspace_name"`
-	Board_name            types.String `tfsdk:"board_name"`
-	Board_id              types.String `tfsdk:"board_id"`
-	Workspace_id          types.String `tfsdk:"workspace_id"`
-	Cards                 []string `tfsdk:"cards"`
-	Member_emails         []string `tfsdk:"member_emails"`
+	Key            types.String `tfsdk:"key"`
+	Token          types.String `tfsdk:"token"`
+	Workspace_name types.String `tfsdk:"workspace_name"`
+	Board_name     types.String `tfsdk:"board_name"`
+	Board_id       types.String `tfsdk:"board_id"`
+	Workspace_id   types.String `tfsdk:"workspace_id"`
+	Cards          []string     `tfsdk:"cards"`
+	Member_emails  []string     `tfsdk:"member_emails"`
 }
 
 func (r *TerraformResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -45,42 +45,42 @@ func (r *TerraformResource) Schema(ctx context.Context, req resource.SchemaReque
 
 		Attributes: map[string]schema.Attribute{
 			"key": schema.StringAttribute{
-                MarkdownDescription: "Trello secret key.",
-                Required:            true,
-            },
+				MarkdownDescription: "Trello secret key.",
+				Required:            true,
+			},
 			"token": schema.StringAttribute{
-                MarkdownDescription: "Trello secret token.",
-                Required:            true,
-            },
+				MarkdownDescription: "Trello secret token.",
+				Required:            true,
+			},
 			"workspace_name": schema.StringAttribute{
-                MarkdownDescription: "name of the workspace.",
-                Required:            true,
-            },
+				MarkdownDescription: "name of the workspace.",
+				Required:            true,
+			},
 			"board_name": schema.StringAttribute{
-                MarkdownDescription: "Name of the board to be created.",
-                Required:            true,
+				MarkdownDescription: "Name of the board to be created.",
+				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
-            },
+			},
 			"board_id": schema.StringAttribute{
-                MarkdownDescription: "id of created board.",
+				MarkdownDescription: "id of created board.",
 				Computed:            true,
-            },
+			},
 			"workspace_id": schema.StringAttribute{
-                MarkdownDescription: "id of created workspace.",
+				MarkdownDescription: "id of created workspace.",
 				Computed:            true,
-            },
+			},
 			"cards": schema.ListAttribute{
-                ElementType: types.StringType,
+				ElementType:         types.StringType,
 				Required:            true,
 				MarkdownDescription: "cards of which board will be filled.",
-            },
+			},
 			"member_emails": schema.ListAttribute{
 				MarkdownDescription: "email of members to send invite.",
-                ElementType: types.StringType,
+				ElementType:         types.StringType,
 				Required:            true,
-            },
+			},
 		},
 	}
 }
@@ -114,70 +114,94 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	key := data.Key.ValueString()
-    token := data.Token.ValueString()
-    workspace_name := data.Workspace_name.ValueString()
-    board_name := data.Board_name.ValueString()
+	token := data.Token.ValueString()
+	workspace_name := data.Workspace_name.ValueString()
+	board_name := data.Board_name.ValueString()
 	cards := data.Cards
 	member_emails := data.Member_emails
 
-	workspace, err := http.Post("https://api.trello.com/1/organizations?key="+key+"&token="+token+"&displayName="+workspace_name,"application/json",nil)
+	workspace, err := http.Post("https://api.trello.com/1/organizations?key="+key+"&token="+token+"&displayName="+workspace_name, "application/json", nil)
 
 	if err != nil {
-        resp.Diagnostics.AddError(
-            "Unable to Create Resource",
-            "An unexpected error occurred while attempting to create the resource. "+
-                "Please retry the operation or report this issue to the provider developers.\n\n"+
-                "HTTP Error: "+err.Error(),
-        )
+		resp.Diagnostics.AddError(
+			"Unable to Create Resource",
+			"An unexpected error occurred while attempting to create the resource. "+
+				"Please retry the operation or report this issue to the provider developers.\n\n"+
+				"HTTP Error: "+err.Error(),
+		)
 
-        return
-    }
+		return
+	}
 
 	workspaceResponse := new(TrelloApiResponse)
-	json.NewDecoder(workspace.Body).Decode(&workspaceResponse)
+
+	workspaceResponseErr := json.NewDecoder(workspace.Body).Decode(&workspaceResponse)
+
+	if workspaceResponseErr != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create Resource",
+			"An unexpected error occurred while attempting to parse json the resource. "+
+				"Please retry the operation or report this issue to the provider developers.\n\n"+
+				"HTTP Error: "+err.Error(),
+		)
+
+		return
+	}
 
 	data.Workspace_id = types.StringValue(workspaceResponse.Id)
 
-	board, err := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+workspaceResponse.Id+"&=&name="+board_name+"&defaultLists=false","application/json",nil)
+	board, err := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+workspaceResponse.Id+"&=&name="+board_name+"&defaultLists=false", "application/json", nil)
 
 	if err != nil {
-        resp.Diagnostics.AddError(
-            "Unable to Create Resource",
-            "An unexpected error occurred while attempting to create the resource. "+
-                "Please retry the operation or report this issue to the provider developers.\n\n"+
-                "HTTP Error: "+err.Error(),
-        )
+		resp.Diagnostics.AddError(
+			"Unable to Create Resource",
+			"An unexpected error occurred while attempting to create the resource. "+
+				"Please retry the operation or report this issue to the provider developers.\n\n"+
+				"HTTP Error: "+err.Error(),
+		)
 
-        return
-    }
+		return
+	}
 
 	boardResponse := new(TrelloApiResponse)
-	json.NewDecoder(board.Body).Decode(boardResponse)
+
+	boardResponseErr := json.NewDecoder(board.Body).Decode(boardResponse)
+
+	if boardResponseErr != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create Resource",
+			"An unexpected error occurred while attempting to parse json the resource. "+
+				"Please retry the operation or report this issue to the provider developers.\n\n"+
+				"HTTP Error: "+err.Error(),
+		)
+
+		return
+	}
 
 	data.Board_id = types.StringValue(boardResponse.Id)
 
 	for i := range cards {
 
-        _, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+cards[i]+"&idBoard="+boardResponse.Id,"application/json",nil)
-	
-        if listsError != nil {
-            resp.Diagnostics.AddError(
+		_, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+cards[i]+"&idBoard="+boardResponse.Id, "application/json", nil)
+
+		if listsError != nil {
+			resp.Diagnostics.AddError(
 				"Unable to Create Cards",
 				"An unexpected error occurred while attempting to create the cards. "+
 					"Please retry the operation or report this issue to the provider developers.\n\n"+
 					"HTTP Error: "+err.Error(),
 			)
-	
+
 			return
-        }
-    }
+		}
+	}
 
 	for i := range member_emails {
-        emailReq, _ := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+boardResponse.Id+"/members?key="+key+"&token="+token+"&email="+member_emails[i], nil)
+		emailReq, _ := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+boardResponse.Id+"/members?key="+key+"&token="+token+"&email="+member_emails[i], nil)
 
-        emailReq.Header.Set("Content-Type", "application/json; charset=utf-8")
+		emailReq.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-        _, emailErr := http.DefaultClient.Do(emailReq)
+		_, emailErr := http.DefaultClient.Do(emailReq)
 
 		if emailErr != nil {
 			resp.Diagnostics.AddError(
@@ -186,10 +210,10 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 					"Please retry the operation or report this issue to the provider developers.\n\n"+
 					"HTTP Error: "+err.Error(),
 			)
-	
+
 			return
 		}
-    }
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -204,8 +228,8 @@ func (r *TerraformResource) Update(ctx context.Context, req resource.UpdateReque
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	key := data.Key.ValueString()
-    token := data.Token.ValueString()
-    board_name := data.Board_name.ValueString()
+	token := data.Token.ValueString()
+	board_name := data.Board_name.ValueString()
 	board_id := data.Board_id.ValueString()
 
 	request, err := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+board_id+"?key="+key+"&token="+token+"&name="+board_name, nil)
@@ -234,13 +258,13 @@ func (r *TerraformResource) Delete(ctx context.Context, req resource.DeleteReque
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	key := data.Key.ValueString()
-    token := data.Token.ValueString()
+	token := data.Token.ValueString()
 	board_id := data.Board_id.ValueString()
-    workspace_id := data.Workspace_id.ValueString()
+	workspace_id := data.Workspace_id.ValueString()
 
 	workspaceRequest, _ := http.NewRequest("DELETE", "https://api.trello.com/1/organizations/"+workspace_id+"?key="+key+"&token="+token, nil)
 
-    workspaceRequest.Header.Set("Content-Type", "application/json; charset=utf-8")
+	workspaceRequest.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	_, err := http.DefaultClient.Do(workspaceRequest)
 
@@ -257,7 +281,7 @@ func (r *TerraformResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	boardRequest, err := http.NewRequest("DELETE", "https://api.trello.com/1/boards/"+board_id+"?key="+key+"&token="+token, nil)
 
-    boardRequest.Header.Set("Content-Type", "application/json; charset=utf-8")
+	boardRequest.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	_, err = http.DefaultClient.Do(boardRequest)
 

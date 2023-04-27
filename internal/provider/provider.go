@@ -19,7 +19,7 @@ type TrelloProvider struct {
 }
 
 // TrelloProviderModel describes the provider data model.
-type TrelloProviderModel struct {}
+type TrelloProviderModel struct{}
 
 func (p *TrelloProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.Version = p.version
@@ -52,8 +52,7 @@ func (p *TrelloProvider) Resources(ctx context.Context) []func() resource.Resour
 }
 
 func (p *TrelloProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
-	}
+	return []func() datasource.DataSource{}
 }
 
 func New(version string) func() provider.Provider {
