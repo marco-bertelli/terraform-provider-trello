@@ -191,8 +191,6 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 					"Please retry the operation or report this issue to the provider developers.\n\n"+
 					"HTTP Error: "+err.Error(),
 			)
-
-			return
 		}
 	}
 
@@ -210,8 +208,6 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 					"Please retry the operation or report this issue to the provider developers.\n\n"+
 					"HTTP Error: "+err.Error(),
 			)
-
-			return
 		}
 	}
 
