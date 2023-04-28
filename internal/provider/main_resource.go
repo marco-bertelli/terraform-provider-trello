@@ -33,6 +33,13 @@ type TerraformResourceModel struct {
 	Workspace_id   types.String `tfsdk:"workspace_id"`
 	Cards          []string     `tfsdk:"cards"`
 	Member_emails  []string     `tfsdk:"member_emails"`
+	Workspace_members []*WorkspaceMemberModel  `tfsdk:"workspace_members"`
+}
+
+type WorkspaceMemberModel struct {
+	Email types.String `tfsdk:"email"`
+	Name types.String `tfsdk:"name"`
+	Role types.String `tfsdk:"role"`
 }
 
 func (r *TerraformResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -81,6 +88,20 @@ func (r *TerraformResource) Schema(ctx context.Context, req resource.SchemaReque
 				ElementType:         types.StringType,
 				Required:            true,
 			},
+			"workspace_members": schema.ListNestedAttribute{
+				Required:            true,
+				NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
+					"email": schema.StringAttribute{
+						Required:    true,
+					},
+					"name": schema.StringAttribute{
+						Required:    true,
+					},
+					"role": schema.StringAttribute{
+						Required:    true,
+					},
+				}},
+			},
 		},
 	}
 }
@@ -119,6 +140,7 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 	board_name := data.Board_name.ValueString()
 	cards := data.Cards
 	member_emails := data.Member_emails
+	workspace_members := data.Workspace_members
 
 	workspace, err := http.Post("https://api.trello.com/1/organizations?key="+key+"&token="+token+"&displayName="+workspace_name, "application/json", nil)
 
@@ -142,7 +164,7 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 			"Unable to Create Resource",
 			"An unexpected error occurred while attempting to parse json the resource. "+
 				"Please retry the operation or report this issue to the provider developers.\n\n"+
-				"HTTP Error: "+err.Error(),
+				"HTTP Error: "+workspaceResponseErr.Error(),
 		)
 
 		return
@@ -172,7 +194,7 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 			"Unable to Create Resource",
 			"An unexpected error occurred while attempting to parse json the resource. "+
 				"Please retry the operation or report this issue to the provider developers.\n\n"+
-				"HTTP Error: "+err.Error(),
+				"HTTP Error: "+boardResponseErr.Error(),
 		)
 
 		return
@@ -189,7 +211,7 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 				"Unable to Create Cards",
 				"An unexpected error occurred while attempting to create the cards. "+
 					"Please retry the operation or report this issue to the provider developers.\n\n"+
-					"HTTP Error: "+err.Error(),
+					"HTTP Error: "+listsError.Error(),
 			)
 		}
 	}
@@ -206,7 +228,28 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 				"Unable to Invite Members",
 				"An unexpected error occurred while attempting to invite. "+
 					"Please retry the operation or report this issue to the provider developers.\n\n"+
-					"HTTP Error: "+err.Error(),
+					"HTTP Error: "+emailErr.Error(),
+			)
+		}
+	}
+
+	for i := range workspace_members {
+		member_email := workspace_members[i].Email.ValueString()
+		member_name := workspace_members[i].Name.ValueString()
+		member_role := workspace_members[i].Role.ValueString()
+	
+		workspaceMemberRequest, _ := http.NewRequest("PUT", "https://api.trello.com/1/organizations/"+workspaceResponse.Id+"/members?email="+member_email+"&fullName="+member_name+"&type="+member_role+"&key="+key+"&token="+token, nil)
+
+		workspaceMemberRequest.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+		_, workspaceMemberErr := http.DefaultClient.Do(workspaceMemberRequest)
+
+		if workspaceMemberErr != nil {
+			resp.Diagnostics.AddError(
+				"Unable to Invite Workspace Members",
+				"An unexpected error occurred while attempting to invite. "+
+					"Please retry the operation or report this issue to the provider developers.\n\n"+
+					"HTTP Error: "+workspaceMemberErr.Error(),
 			)
 		}
 	}
