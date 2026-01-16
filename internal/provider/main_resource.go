@@ -148,6 +148,10 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	key := data.Key.ValueString()
 	token := data.Token.ValueString()
 	workspace_name := data.Workspace_name.ValueString()
@@ -189,6 +193,11 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 	data.Board_ids = make([]string, len(boards))
 
 	for i, board := range boards {
+		// Skip nil boards
+		if board == nil {
+			continue
+		}
+
 		board_name := board.Name.ValueString()
 		boardResp, err := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+workspaceResponse.Id+"&=&name="+board_name+"&defaultLists=false", "application/json", nil)
 
@@ -222,17 +231,19 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 		data.Board_ids[i] = boardResponse.Id
 
 		// Create cards for this specific board
-		for _, card := range boards[i].Cards {
-			tflog.Debug(ctx, "https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+card+"&idBoard="+boardResponse.Id)
-			_, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+card+"&idBoard="+boardResponse.Id, "application/json", nil)
+		if boards[i] != nil && boards[i].Cards != nil {
+			for _, card := range boards[i].Cards {
+				tflog.Debug(ctx, "https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+card+"&idBoard="+boardResponse.Id)
+				_, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+card+"&idBoard="+boardResponse.Id, "application/json", nil)
 
-			if listsError != nil {
-				resp.Diagnostics.AddError(
-					"Unable to Create Cards",
-					"An unexpected error occurred while attempting to create the cards. "+
-						"Please retry the operation or report this issue to the provider developers.\n\n"+
-						"HTTP Error: "+listsError.Error(),
-				)
+				if listsError != nil {
+					resp.Diagnostics.AddError(
+						"Unable to Create Cards",
+						"An unexpected error occurred while attempting to create the cards. "+
+							"Please retry the operation or report this issue to the provider developers.\n\n"+
+							"HTTP Error: "+listsError.Error(),
+					)
+				}
 			}
 		}
 
