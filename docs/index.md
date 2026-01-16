@@ -15,7 +15,7 @@ this provider interact with trello API to create board (is intended for create t
 ## News
 1. collaborators email automatic invites for private boards, this feature help automatic invite default users for private or public boards
 2. workspace members automatic invite, i can choose to add a people into the workspace but not in the board (for example external people), pass an empty array if not used
-3. change the field board name to board_names = [] (! IMPORTANT MAX 3 boards as now for workspace more boards will be created but not destroyed or updated)
+3. **NEW**: Custom cards for each board! Now you can specify different cards (lists) for each board using the `boards` array of objects. Each board has its own `name` and `cards` array.
 
 
 ## Example Usage
@@ -27,7 +27,7 @@ if member_emails or workspace_members are not used pass and empty array or terra
   required_providers {
     trello = {
       source = "marco-bertelli/trello"
-      version = "3.1.0"
+      version = "3.3.0"
     }
   }
 }
@@ -37,10 +37,22 @@ resource "trello_board" "my-board-name" {
 	key = "your-key"
   token = "your-token"
   workspace_name = "terraform-trello"
-  board_names = ["test"]
-  cards = ["new","todo","custom"]
-  member_emails = ["marco.bertelli@testcollaborator.com"],
-  workspace_members = [{"email": "marco.bertelli@testcollaborator.com", "role": "normal", "name": "marco"}]
+  boards = [
+    {
+      name = "Development Board"
+      cards = ["Backlog", "In Progress", "Done"]
+    },
+    {
+      name = "Marketing Board"
+      cards = ["Ideas", "Planning", "Execution", "Complete"]
+    },
+    {
+      name = "HR Board"
+      cards = ["Recruiting", "Onboarding", "Training"]
+    }
+  ]
+  member_emails = ["marco.bertelli@testcollaborator.com"]
+  workspace_members = [{email = "marco.bertelli@testcollaborator.com", role = "normal", name = "marco"}]
 }
 ```
 

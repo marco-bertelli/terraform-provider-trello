@@ -29,14 +29,16 @@ type TerraformResourceModel struct {
 	Key               types.String            `tfsdk:"key"`
 	Token             types.String            `tfsdk:"token"`
 	Workspace_name    types.String            `tfsdk:"workspace_name"`
-	Board_names       []string                `tfsdk:"board_names"`
-	Board_id_1        types.String            `tfsdk:"board_id_1"`
-	Board_id_2        types.String            `tfsdk:"board_id_2"`
-	Board_id_3        types.String            `tfsdk:"board_id_3"`
+	Boards            []*BoardModel           `tfsdk:"boards"`
+	Board_ids         []string                `tfsdk:"board_ids"`
 	Workspace_id      types.String            `tfsdk:"workspace_id"`
-	Cards             []string                `tfsdk:"cards"`
 	Member_emails     []string                `tfsdk:"member_emails"`
 	Workspace_members []*WorkspaceMemberModel `tfsdk:"workspace_members"`
+}
+
+type BoardModel struct {
+	Name  types.String `tfsdk:"name"`
+	Cards []string     `tfsdk:"cards"`
 }
 
 type WorkspaceMemberModel struct {
@@ -66,34 +68,34 @@ func (r *TerraformResource) Schema(ctx context.Context, req resource.SchemaReque
 				MarkdownDescription: "name of the workspace.",
 				Required:            true,
 			},
-			"board_names": schema.ListAttribute{
-				ElementType:         types.StringType,
+			"boards": schema.ListNestedAttribute{
 				Required:            true,
-				MarkdownDescription: "Names of the boards to be created.",
+				MarkdownDescription: "List of boards to be created with their cards.",
 				PlanModifiers: []planmodifier.List{
 					listplanmodifier.RequiresReplace(),
 				},
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "Name of the board.",
+						},
+						"cards": schema.ListAttribute{
+							ElementType:         types.StringType,
+							Required:            true,
+							MarkdownDescription: "List of cards (lists) for this board.",
+						},
+					},
+				},
+			},
+			"board_ids": schema.ListAttribute{
+				ElementType:         types.StringType,
+				Computed:            true,
+				MarkdownDescription: "IDs of the created boards.",
 			},
 			"workspace_id": schema.StringAttribute{
 				MarkdownDescription: "id of created workspace.",
 				Computed:            true,
-			},
-			"board_id_1": schema.StringAttribute{
-				MarkdownDescription: "id of created workspace.",
-				Computed:            true,
-			},
-			"board_id_2": schema.StringAttribute{
-				MarkdownDescription: "id of created workspace.",
-				Computed:            true,
-			},
-			"board_id_3": schema.StringAttribute{
-				MarkdownDescription: "id of created workspace.",
-				Computed:            true,
-			},
-			"cards": schema.ListAttribute{
-				ElementType:         types.StringType,
-				Required:            true,
-				MarkdownDescription: "cards of which board will be filled.",
 			},
 			"member_emails": schema.ListAttribute{
 				MarkdownDescription: "email of members to send invite.",
@@ -149,8 +151,7 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 	key := data.Key.ValueString()
 	token := data.Token.ValueString()
 	workspace_name := data.Workspace_name.ValueString()
-	board_names := data.Board_names
-	cards := data.Cards
+	boards := data.Boards
 	member_emails := data.Member_emails
 	workspace_members := data.Workspace_members
 
@@ -184,8 +185,12 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 
 	data.Workspace_id = types.StringValue(workspaceResponse.Id)
 
-	for i := range board_names {
-		board, err := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+workspaceResponse.Id+"&=&name="+board_names[i]+"&defaultLists=false", "application/json", nil)
+	// Initialize board_ids slice
+	data.Board_ids = make([]string, len(boards))
+
+	for i, board := range boards {
+		board_name := board.Name.ValueString()
+		boardResp, err := http.Post("https://api.trello.com/1/boards?key="+key+"&token="+token+"&idOrganization="+workspaceResponse.Id+"&=&name="+board_name+"&defaultLists=false", "application/json", nil)
 
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -200,7 +205,7 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 
 		boardResponse := new(TrelloApiResponse)
 
-		boardResponseErr := json.NewDecoder(board.Body).Decode(boardResponse)
+		boardResponseErr := json.NewDecoder(boardResp.Body).Decode(boardResponse)
 
 		if boardResponseErr != nil {
 			resp.Diagnostics.AddError(
@@ -213,17 +218,13 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 			return
 		}
 
-		if i == 0 {
-			data.Board_id_1 = types.StringValue(boardResponse.Id)
-		} else if i == 1 {
-			data.Board_id_2 = types.StringValue(boardResponse.Id)
-		} else if i == 2 {
-			data.Board_id_3 = types.StringValue(boardResponse.Id)
-		}
+		// Store the board ID
+		data.Board_ids[i] = boardResponse.Id
 
-		for i := range cards {
-			tflog.Debug(ctx, "https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+cards[i]+"&idBoard="+boardResponse.Id)
-			_, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+cards[i]+"&idBoard="+boardResponse.Id, "application/json", nil)
+		// Create cards for this specific board
+		for _, card := range boards[i].Cards {
+			tflog.Debug(ctx, "https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+card+"&idBoard="+boardResponse.Id)
+			_, listsError := http.Post("https://api.trello.com/1/lists?key="+key+"&token="+token+"&name="+card+"&idBoard="+boardResponse.Id, "application/json", nil)
 
 			if listsError != nil {
 				resp.Diagnostics.AddError(
@@ -235,9 +236,10 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 			}
 		}
 
-		for i := range member_emails {
-			tflog.Debug(ctx, "https://api.trello.com/1/boards/"+boardResponse.Id+"/members?key="+key+"&token="+token+"&email="+member_emails[i])
-			emailReq, _ := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+boardResponse.Id+"/members?key="+key+"&token="+token+"&email="+member_emails[i], nil)
+		// Invite members to board
+		for _, member_email := range member_emails {
+			tflog.Debug(ctx, "https://api.trello.com/1/boards/"+boardResponse.Id+"/members?key="+key+"&token="+token+"&email="+member_email)
+			emailReq, _ := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+boardResponse.Id+"/members?key="+key+"&token="+token+"&email="+member_email, nil)
 
 			emailReq.Header.Set("Content-Type", "application/json; charset=utf-8")
 
@@ -276,19 +278,6 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 		}
 	}
 
-	// ! we have to fill nulls empty board ids
-	if data.Board_id_1.ValueString() == "" {
-		data.Board_id_1 = types.StringValue("null")
-	}
-
-	if data.Board_id_2.ValueString() == "" {
-		data.Board_id_2 = types.StringValue("null")
-	}
-
-	if data.Board_id_3.ValueString() == "" {
-		data.Board_id_3 = types.StringValue("null")
-	}
-
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -303,18 +292,18 @@ func (r *TerraformResource) Update(ctx context.Context, req resource.UpdateReque
 
 	key := data.Key.ValueString()
 	token := data.Token.ValueString()
-	board_names := data.Board_names
-	board_ids := []types.String{data.Board_id_1, data.Board_id_2, data.Board_id_3}
+	boards := data.Boards
+	board_ids := data.Board_ids
 
-	for i := range board_ids {
-		// ! we have to skip null board ids
-		if board_ids[i].ValueString() == "null" {
+	for i, board := range boards {
+		// Skip if we don't have a corresponding board ID
+		if i >= len(board_ids) || board_ids[i] == "" {
 			continue
 		}
 
-		board_name := board_names[i]
+		board_name := board.Name.ValueString()
 
-		request, err := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+board_ids[i].ValueString()+"?key="+key+"&token="+token+"&name="+board_name, nil)
+		request, err := http.NewRequest("PUT", "https://api.trello.com/1/boards/"+board_ids[i]+"?key="+key+"&token="+token+"&name="+board_name, nil)
 
 		request.Header.Set("Content-Type", "application/json; charset=utf-8")
 
@@ -343,7 +332,7 @@ func (r *TerraformResource) Delete(ctx context.Context, req resource.DeleteReque
 	key := data.Key.ValueString()
 	token := data.Token.ValueString()
 	workspace_id := data.Workspace_id.ValueString()
-	board_ids := []types.String{data.Board_id_1, data.Board_id_2, data.Board_id_3}
+	board_ids := data.Board_ids
 
 	workspaceRequest, _ := http.NewRequest("DELETE", "https://api.trello.com/1/organizations/"+workspace_id+"?key="+key+"&token="+token, nil)
 
@@ -362,12 +351,12 @@ func (r *TerraformResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	for i := range board_ids {
-		if board_ids[i].ValueString() == "null" {
+	for _, board_id := range board_ids {
+		if board_id == "" {
 			continue
 		}
 
-		boardRequest, err := http.NewRequest("DELETE", "https://api.trello.com/1/boards/"+board_ids[i].ValueString()+"?key="+key+"&token="+token, nil)
+		boardRequest, err := http.NewRequest("DELETE", "https://api.trello.com/1/boards/"+board_id+"?key="+key+"&token="+token, nil)
 
 		boardRequest.Header.Set("Content-Type", "application/json; charset=utf-8")
 
