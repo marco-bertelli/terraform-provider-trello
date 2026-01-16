@@ -15,7 +15,8 @@ this provider interact with trello API to create board (is intended for create t
 ## News
 1. collaborators email automatic invites for private boards, this feature help automatic invite default users for private or public boards
 2. workspace members automatic invite, i can choose to add a people into the workspace but not in the board (for example external people), pass an empty array if not used
-3. **NEW**: Custom cards for each board! Now you can specify different cards (lists) for each board using the `boards` array of objects. Each board has its own `name` and `cards` array.
+3. Custom cards for each board! Now you can specify different cards (lists) for each board using the `boards` array of objects. Each board has its own `name` and `cards` array.
+4. **NEW**: Custom labels for each board! Now you can specify labels with name and color for each board. Valid colors: yellow, purple, blue, red, green, orange, black, sky, pink, lime.
 
 
 ## Example Usage
@@ -27,7 +28,7 @@ if member_emails or workspace_members are not used pass and empty array or terra
   required_providers {
     trello = {
       source = "marco-bertelli/trello"
-      version = "3.3.4"
+      version = "3.4.0"
     }
   }
 }
@@ -41,14 +42,48 @@ resource "trello_board" "my-board-name" {
     {
       name = "Development Board"
       cards = ["Backlog", "In Progress", "Done"]
+      labels = [
+        {
+          name = "Bug"
+          color = "red"
+        },
+        {
+          name = "Feature"
+          color = "green"
+        },
+        {
+          name = "Enhancement"
+          color = "blue"
+        }
+      ]
     },
     {
       name = "Marketing Board"
       cards = ["Ideas", "Planning", "Execution", "Complete"]
+      labels = [
+        {
+          name = "Campaign"
+          color = "purple"
+        },
+        {
+          name = "Content"
+          color = "orange"
+        }
+      ]
     },
     {
       name = "HR Board"
       cards = ["Recruiting", "Onboarding", "Training"]
+      labels = [
+        {
+          name = "Urgent"
+          color = "red"
+        },
+        {
+          name = "Interview"
+          color = "yellow"
+        }
+      ]
     }
   ]
   member_emails = ["marco.bertelli@testcollaborator.com"]

@@ -37,8 +37,14 @@ type TerraformResourceModel struct {
 }
 
 type BoardModel struct {
+	Name   types.String   `tfsdk:"name"`
+	Cards  []string       `tfsdk:"cards"`
+	Labels []*LabelModel  `tfsdk:"labels"`
+}
+
+type LabelModel struct {
 	Name  types.String `tfsdk:"name"`
-	Cards []string     `tfsdk:"cards"`
+	Color types.String `tfsdk:"color"`
 }
 
 type WorkspaceMemberModel struct {
@@ -80,6 +86,22 @@ func (r *TerraformResource) Schema(ctx context.Context, req resource.SchemaReque
 							ElementType:         types.StringType,
 							Required:            true,
 							MarkdownDescription: "List of cards (lists) for this board.",
+						},
+						"labels": schema.ListNestedAttribute{
+							Optional:            true,
+							MarkdownDescription: "List of labels for this board.",
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"name": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "Name of the label.",
+									},
+									"color": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "Color of the label. Valid values: yellow, purple, blue, red, green, orange, black, sky, pink, lime.",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -241,6 +263,29 @@ func (r *TerraformResource) Create(ctx context.Context, req resource.CreateReque
 						"An unexpected error occurred while attempting to create the cards. "+
 							"Please retry the operation or report this issue to the provider developers.\n\n"+
 							"HTTP Error: "+listsError.Error(),
+					)
+				}
+			}
+		}
+
+		// Create labels for this specific board
+		if boards[i] != nil && boards[i].Labels != nil {
+			for _, label := range boards[i].Labels {
+				if label == nil {
+					continue
+				}
+
+				labelName := label.Name.ValueString()
+				labelColor := label.Color.ValueString()
+
+				_, labelError := http.Post("https://api.trello.com/1/labels?key="+key+"&token="+token+"&name="+labelName+"&color="+labelColor+"&idBoard="+boardResponse.Id, "application/json", nil)
+
+				if labelError != nil {
+					resp.Diagnostics.AddError(
+						"Unable to Create Labels",
+						"An unexpected error occurred while attempting to create the labels. "+
+							"Please retry the operation or report this issue to the provider developers.\n\n"+
+							"HTTP Error: "+labelError.Error(),
 					)
 				}
 			}
