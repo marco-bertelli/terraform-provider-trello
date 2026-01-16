@@ -27,7 +27,7 @@ if member_emails or workspace_members are not used pass and empty array or terra
   required_providers {
     trello = {
       source = "marco-bertelli/trello"
-      version = "3.3.2"
+      version = "3.3.4"
     }
   }
 }

@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // ! Ensure provider defined types fully satisfy framework interfaces.
@@ -88,10 +88,16 @@ func (r *TerraformResource) Schema(ctx context.Context, req resource.SchemaReque
 				ElementType:         types.StringType,
 				Computed:            true,
 				MarkdownDescription: "IDs of the created boards.",
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"workspace_id": schema.StringAttribute{
 				MarkdownDescription: "id of created workspace.",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"member_emails": schema.ListAttribute{
 				MarkdownDescription: "email of members to send invite.",
